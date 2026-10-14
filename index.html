@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#183b32">
+  <meta name="description" content="Planit: tu planificador personal de viajes y presupuestos.">
+  <title>Planit — Mi planificador de viajes</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="#" aria-label="Planit, inicio">
+      <span class="brand-icon">✈</span>
+      <span>Planit</span>
+    </a>
+    <p>Todos tus viajes, mejor organizados.</p>
+  </header>
+
+  <main class="container">
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">TU PLANIFICACIÓN</p>
+          <h1>Mis viajes</h1>
+        </div>
+        <span class="app-mark">P.</span>
+      </div>
+
+      <label for="yearSelect">Año</label>
+      <div class="toolbar">
+        <select id="yearSelect" aria-label="Seleccionar año"></select>
+        <button id="addYearBtn" class="button button-secondary" type="button">
+          + Año
+        </button>
+      </div>
+
+      <div class="divider"></div>
+
+      <label for="newTripName">Crear un viaje</label>
+      <div class="toolbar">
+        <input id="newTripName" type="text"
+          placeholder="Ej. Japón, Italia, Nueva York">
+        <button id="addTripBtn" class="button" type="button">
+          + Crear
+        </button>
+      </div>
+
+      <div id="tripList" class="trip-list"></div>
+    </section>
+
+    <section id="tripWorkspace" hidden>
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">MI VIAJE</p>
+            <h2 id="workspaceTitle">Nuevo viaje</h2>
+          </div>
+          <button id="deleteTripBtn" class="button button-danger"
+            type="button">Eliminar viaje</button>
+        </div>
+
+        <label for="tripName">Nombre del viaje</label>
+        <input id="tripName" type="text" placeholder="Nombre del viaje">
+
+        <div class="form-grid">
+          <div>
+            <label for="tripStart">Fecha de inicio</label>
+            <input id="tripStart" type="date">
+          </div>
+          <div>
+            <label for="tripEnd">Fecha de fin</label>
+            <input id="tripEnd" type="date">
+          </div>
+        </div>
+
+        <label for="tripNotes">Notas generales</label>
+        <textarea id="tripNotes"
+          placeholder="Ideas, información importante, reservas..."></textarea>
+
+        <button id="generateDaysBtn" class="button" type="button">
+          Generar días del viaje
+        </button>
+      </section>
+
+      <section class="panel">
+        <p class="eyebrow">COMPARA Y DECIDE</p>
+        <h2>Itinerarios del viaje</h2>
+        <p class="muted">
+          Tres propuestas para el viaje completo. Podrás elegir tu favorita.
+        </p>
+        <div id="tripItineraries"></div>
+      </section>
+
+      <section class="panel budget-panel">
+        <p class="eyebrow">CONTROL DE GASTOS</p>
+        <h2>Presupuesto total</h2>
+        <div class="budget-grid">
+          <div class="budget-card">
+            <span>Previsión</span>
+            <strong id="totalEstimate" class="estimate">0,00 €</strong>
+          </div>
+          <div class="budget-card">
+            <span>Precio final</span>
+            <strong id="totalActual" class="actual">0,00 €</strong>
+          </div>
+          <div class="budget-card">
+            <span>Diferencia</span>
+            <strong id="totalDifference">0,00 €</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ORGANIZA CADA JORNADA</p>
+            <h2>Mi itinerario diario</h2>
+          </div>
+          <button id="addDayBtn" class="button" type="button">
+            + Añadir día
+          </button>
+        </div>
+
+        <div class="day-navigation">
+          <button id="previousDayBtn" class="button button-secondary"
+            type="button">← Anterior</button>
+          <span id="dayPosition" class="muted">Sin días</span>
+          <button id="nextDayBtn" class="button button-secondary"
+            type="button">Siguiente →</button>
+        </div>
+
+        <div id="daysContainer"></div>
+      </section>
+    </section>
+
+    <section class="panel">
+      <p class="eyebrow">TUS DATOS</p>
+      <h2>Copias de seguridad</h2>
+      <p class="muted">
+        Guarda una copia de tus viajes para recuperarlos o transferirlos
+        a otro dispositivo.
+      </p>
+      <div class="toolbar backup-toolbar">
+        <button id="exportBtn" class="button" type="button">
+          Exportar copia
+        </button>
+        <button id="importBtn" class="button button-secondary" type="button">
+          Importar copia
+        </button>
+        <input id="importFile" type="file" accept=".json,application/json"
+          hidden>
+      </div>
+      <p id="statusMessage" role="status" aria-live="polite"></p>
+    </section>
+
+    <footer class="app-footer">
+      <span>Planit</span>
+      <span>Tu próximo viaje empieza aquí.</span>
+    </footer>
+  </main>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
