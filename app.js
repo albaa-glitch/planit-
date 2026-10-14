@@ -14,6 +14,7 @@
   } catch { state = structuredClone(initial); }
   let selectedDayIndex = 0;
   let showingActivityForm = false;
+  let activePlanningTab = 'flights';
 
   function save() {
     try {localStorage.setItem(KEY, JSON.stringify(state));}
@@ -34,8 +35,105 @@
     if(!Array.isArray(trip.itineraries))trip.itineraries=Array.from({length:3},(_,i)=>({name:`Propuesta ${i+1}`,notes:''}));
     while(trip.itineraries.length<3)trip.itineraries.push({name:`Propuesta ${trip.itineraries.length+1}`,notes:''});
     if(!Number.isInteger(trip.selectedItinerary))trip.selectedItinerary=-1;
+    trip.itineraries.forEach(proposal=>{if(!proposal.sections || typeof proposal.sections !== 'object' || Array.isArray(proposal.sections))proposal.sections={}; for(const category of PLAN_CATEGORIES)if(!Array.isArray(proposal.sections[category.key]))proposal.sections[category.key]=[];});
     for(const day of trip.days){if(!Array.isArray(day.activities))day.activities=[];}
   }
+
+  // Datos separados por propuesta de itinerario y por categoría.
+  const PLAN_CATEGORIES = [
+    {key:'flights', icon:'✈️', label:'Vuelos', singular:'Vuelo', fields:[['airline','Compañía aérea','text'],['flightNumber','Número de vuelo','text'],['origin','Aeropuerto de salida','text'],['destination','Aeropuerto de llegada','text'],['date','Fecha','date'],['departure','Hora de salida','time'],['arrival','Hora de llegada','time'],['booking','Localizador / reserva','text']]},
+    {key:'transport',icon:'🚆',label:'Transporte',singular:'Transporte',fields:[['type','Tipo de transporte','select',['Tren','Autobús','Metro','Taxi / VTC','Coche de alquiler','Barco / ferry','Traslado privado','Otro']],['origin','Origen','text'],['destination','Destino','text'],['date','Fecha','date'],['time','Hora','time'],['company','Empresa / operador','text'],['details','Detalles / reserva','text']]},
+    {key:'accommodation',icon:'🏨',label:'Alojamiento',singular:'Alojamiento',fields:[['city','Lugar donde duermes','text'],['hotel','Nombre del hotel / alojamiento','text'],['address','Dirección','text'],['checkin','Entrada','date'],['checkout','Salida','date'],['booking','Reserva / referencia','text'],['details','Detalles','text']]},
+    {key:'tours',icon:'🎟️',label:'Tours y entradas',singular:'Tour / entrada',fields:[['name','Tour, museo o actividad','text'],['provider','Proveedor / web','text'],['date','Fecha','date'],['time','Hora','time'],['people','Número de personas','number'],['booking','Código de reserva','text'],['details','Detalles','text']]},
+    {key:'food',icon:'🍽️',label:'Comida',singular:'Comida / restaurante',fields:[['name','Restaurante / comida','text'],['city','Ciudad / zona','text'],['date','Fecha','date'],['time','Hora','time'],['people','Número de personas','number'],['details','Detalles','text']]},
+    {key:'notes',icon:'📝',label:'Notas',singular:'Nota',fields:[['title','Título','text'],['details','Contenido de la nota','textarea']]},
+    {key:'other',icon:'🧾',label:'Otros gastos',singular:'Otro gasto',fields:[['type','Concepto','select',['eSIM','Visado','Seguro de viaje','Equipaje','Comisiones','Otros']],['provider','Proveedor','text'],['date','Fecha','date'],['details','Detalles, cobertura o condiciones','textarea'],['visaNeeded','¿Necesitas visado?','select',['Por comprobar','Sí','No','No aplica']]]}
+  ];
+  function planningHost(){
+    let host=$('planningSection');if(host)return host;
+    host=node('section','panel');host.id='planningSection';
+    $('tripWorkspace').querySelector('.budget-panel').before(host);
+    return host;
+  }
+  function formControl(spec,value,onInput){
+    const [key,label,type,options]=spec;
+    const wrap=node('div','planning-field');const caption=node('label','',label);
+    let input;
+    if(type==='select'){
+      input=node('select');
+      for(const opt of ['Seleccionar...',...options]){const option=node('option','',opt);option.value=opt==='Seleccionar...'?'':opt;input.append(option);}
+    }else if(type==='textarea')input=node('textarea');
+    else {input=node('input');input.type=type;if(type==='number'){input.min='0';input.step='1';}}
+    input.value=value??'';
+    input.addEventListener('input',e=>onInput(e.target.value));
+    wrap.append(caption,input);return wrap;
+  }
+  function renderPlanning(trip){
+    const host=planningHost();host.replaceChildren();
+    host.append(node('p','eyebrow','PLANIFICA TU OPCIÓN ELEGIDA'),node('h2','','Detalles y reservas del itinerario'));
+    const proposal=trip.itineraries[trip.selectedItinerary];
+    if(!proposal){host.append(node('div','empty-state','Primero selecciona una propuesta A, B o C en «Itinerarios del viaje».'));return;}
+    host.append(node('p','muted',`Editando: ${proposal.name||'Itinerario '+String.fromCharCode(65+trip.selectedItinerary)}. Los gastos pertenecen únicamente a esta propuesta.`));
+    const tabs=node('div','planning-tabs');tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','Secciones del itinerario');
+    for(const c of PLAN_CATEGORIES){
+      const b=node('button',`planning-tab ${activePlanningTab===c.key?'is-selected':''}`,`${c.icon} ${c.label}`);
+      b.type='button';b.setAttribute('role','tab');b.setAttribute('aria-selected',String(activePlanningTab===c.key));
+      b.addEventListener('click',()=>{activePlanningTab=c.key;renderPlanning(trip);});tabs.append(b);
+    }
+    host.append(tabs);
+    const category=PLAN_CATEGORIES.find(c=>c.key===activePlanningTab)||PLAN_CATEGORIES[0];
+    const entries=proposal.sections[category.key];
+    const header=node('div','planning-heading');header.append(node('h3','',`${category.icon} ${category.label}`));
+    header.append(button(`+ Añadir ${category.singular.toLowerCase()}`,'button-small',()=>showPlanningForm(host,trip,category)));
+    host.append(header);
+    if(!entries.length)host.append(node('div','empty-state',`No has añadido datos en ${category.label.toLowerCase()}.`));
+    entries.forEach((entry,index)=>{
+      const card=node('div','planning-entry');const top=node('div','planning-entry-top');const info=node('div');
+      const headline=entry.hotel||entry.airline||entry.name||entry.title||entry.type||entry.city||entry.origin||category.singular;
+      info.append(node('strong','',headline));
+      const detail=[entry.date||entry.checkin,entry.time||entry.departure,entry.origin&&entry.destination?`${entry.origin} → ${entry.destination}`:'',entry.details].filter(Boolean).join(' · ');
+      if(detail)info.append(node('p','muted',detail));
+      if(category.key==='other' && entry.type==='Visado')info.append(node('p','muted',`¿Hace falta visado?: ${entry.visaNeeded||'Por comprobar'}`));
+      const actions=node('div','item-actions');
+      actions.append(button('Editar','button-small button-secondary',()=>showPlanningForm(host,trip,category,index)));
+      actions.append(button('Borrar','button-small button-danger',()=>{if(confirm('¿Eliminar este elemento y sus importes?')){entries.splice(index,1);save();renderPlanning(trip);renderBudget(trip);}}));
+      top.append(info,actions);card.append(top);
+      if(category.key!=='notes'||Number(entry.estimate)||Number(entry.actual)){
+        const amounts=node('div','activity-costs');amounts.append(node('span','',`Previsto: ${money(entry.estimate)}`),node('span','',`Final: ${entry.actual===''||entry.actual==null?'Pendiente':money(entry.actual)}`));card.append(amounts);
+      }
+      host.append(card);
+    });
+    const tally=entries.reduce((sum,e)=>({estimate:sum.estimate+(Number(e.estimate)||0),actual:sum.actual+(Number(e.actual)||0)}),{estimate:0,actual:0});
+    host.append(node('p','planning-subtotal',`Subtotal de ${category.label.toLowerCase()}: ${money(tally.estimate)} previsto · ${money(tally.actual)} final`));
+    host.append(node('p','muted','Los importes se suman al presupuesto general. Evita registrar el mismo gasto también como actividad diaria para que no se contabilice dos veces.'));
+  }
+  function showPlanningForm(host,trip,category,index=-1){
+    host.querySelector('.planning-form')?.remove();
+    const proposal=trip.itineraries[trip.selectedItinerary];const entries=proposal.sections[category.key];
+    const old=index<0?{}:entries[index];
+    const data={...old};const form=node('div','planning-form');
+    form.append(node('h3','',index<0?`Nuevo: ${category.singular}`:`Editar: ${category.singular}`));
+    const grid=node('div','planning-form-grid');
+    for(const spec of category.fields)grid.append(formControl(spec,data[spec[0]],v=>{data[spec[0]]=v;}));
+    if(category.key!=='notes'){
+      grid.append(formControl(['estimate','Presupuesto previsto (€)','number'],data.estimate,v=>data.estimate=v));
+      grid.append(formControl(['actual','Precio final (€)','number'],data.actual,v=>data.actual=v));
+    }
+    form.append(grid);
+    const actions=node('div','item-actions');
+    actions.append(button('Guardar','',()=>{
+      for(const key of ['estimate','actual']){
+        if(data[key]!==undefined&&data[key]!==''&&(!Number.isFinite(Number(data[key]))||Number(data[key])<0)){alert('Los importes deben ser números iguales o mayores que cero.');return;}
+        if(data[key]!==undefined&&data[key]!=='')data[key]=Number(data[key]);
+      }
+      if(category.key==='accommodation'&&data.checkin&&data.checkout&&data.checkout<data.checkin){alert('La salida del hotel no puede ser anterior a la entrada.');return;}
+      if(index<0)entries.push({id:id(),...data});else entries[index]={...entries[index],...data};
+      save();renderPlanning(trip);renderBudget(trip);
+    }));
+    actions.append(button('Cancelar','button-secondary',()=>form.remove()));form.append(actions);
+    host.append(form);form.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+
   function render() {renderYears();renderTrips();renderWorkspace();}
   function renderYears() {
     const select=$('yearSelect'); select.replaceChildren();
@@ -67,7 +165,7 @@
     $('tripStart').value=trip.start||'';
     $('tripEnd').value=trip.end||'';
     $('tripNotes').value=trip.notes||'';
-    renderItineraries(trip);renderBudget(trip);renderDay(trip);
+    renderItineraries(trip);renderPlanning(trip);renderBudget(trip);renderDay(trip);
   }
   function renderItineraries(trip) {
     const host=$('tripItineraries');host.replaceChildren();
@@ -77,13 +175,16 @@
       card.append(node('h3','',`Itinerario ${String.fromCharCode(65+i)}`));
       card.append(field('Nombre de la propuesta',proposal.name,value=>{proposal.name=value;save();}));
       card.append(field('Ruta, ideas y diferencias',proposal.notes,value=>{proposal.notes=value;save();},'textarea','Ej. Ruta por ciudades, transportes, hoteles y ventajas...'));
-      card.append(button(trip.selectedItinerary===i?'✓ Mi favorito':'Elegir itinerario',trip.selectedItinerary===i?'':'button-secondary',()=>{trip.selectedItinerary=i;save();renderItineraries(trip);}));
+      card.append(button(trip.selectedItinerary===i?'✓ Mi favorito':'Elegir itinerario',trip.selectedItinerary===i?'':'button-secondary',()=>{trip.selectedItinerary=i;save();renderItineraries(trip);renderPlanning(trip);renderBudget(trip);}));
       grid.append(card);
     });host.append(grid);
-    host.append(node('p','muted','Estas son tres alternativas editables para comparar rutas completas. El itinerario diario se organiza por separado.'));
+    host.append(node('p','muted','Elige una propuesta para planificar vuelos, hoteles y otros gastos. Cada propuesta guarda sus propios datos.'));
   }
   function costs(trip) {
-    return trip.days.flatMap(d=>d.activities||[]).reduce((sum,a)=>({estimate:sum.estimate+(Number(a.estimate)||0),actual:sum.actual+(Number(a.actual)||0)}),{estimate:0,actual:0});
+    const sum=trip.days.flatMap(d=>d.activities||[]).reduce((acc,a)=>({estimate:acc.estimate+(Number(a.estimate)||0),actual:acc.actual+(Number(a.actual)||0)}),{estimate:0,actual:0});
+    const proposal=trip.itineraries[trip.selectedItinerary];
+    if(proposal?.sections)for(const category of PLAN_CATEGORIES)for(const entry of proposal.sections[category.key]||[]){sum.estimate+=Number(entry.estimate)||0;sum.actual+=Number(entry.actual)||0;}
+    return sum;
   }
   function renderBudget(trip) {
     const {estimate,actual}=costs(trip);
@@ -189,7 +290,7 @@
   });
   function addTrip() {
     const name=$('newTripName').value.trim();if(!name){alert('Escribe el nombre del viaje.');return;}
-    const trip={id:id(),year:state.selectedYear,name,start:'',end:'',notes:'',days:[],selectedItinerary:-1,itineraries:Array.from({length:3},(_,i)=>({name:`Propuesta ${i+1}`,notes:''}))};
+    const trip={id:id(),year:state.selectedYear,name,start:'',end:'',notes:'',days:[],selectedItinerary:-1,itineraries:Array.from({length:3},(_,i)=>({name:`Propuesta ${i+1}`,notes:'',sections:{}}))};
     state.trips.push(trip);state.activeTripId=trip.id;selectedDayIndex=0;$('newTripName').value='';save();render();
     $('tripWorkspace').scrollIntoView({behavior:'smooth',block:'start'});
   }
